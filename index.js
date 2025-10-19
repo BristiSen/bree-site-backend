@@ -1,118 +1,95 @@
 // 0️⃣ Load environment variables
 require("dotenv").config();
-
-const express = require("express");
-const bodyParser = require("body-parser");
-const cors = require("cors");
 const { google } = require("googleapis");
 
-const app = express();
-const PORT = 3001;
-
-app.use(cors());
-app.use(bodyParser.json());
-
-// 1️⃣ Auth with Google Sheets API using .env secrets
+// 1️⃣ Setup Google Auth using environment variables
 const auth = new google.auth.GoogleAuth({
   credentials: {
     client_email: process.env.GOOGLE_CLIENT_EMAIL,
-    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"), // IMPORTANT: convert \\n to actual line breaks
+    // Replace escaped \n with real newlines
+    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
   },
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
 const sheets = google.sheets({ version: "v4", auth });
 
-// 2️⃣ Your Google Sheet ID from .env
+// 2️⃣ Spreadsheet ID from your .env
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 
-// 3️⃣ Add Comment Route
-app.post("/add-comment", async (req, res) => {
+// 3️⃣ Main handler — this works with Vercel's serverless setup
+module.exports = async (req, res) => {
   try {
-    const { name, comment } = req.body;
-    if (!name || !comment) {
-      return res.status(400).json({ success: false, message: "Name and comment are required." });
+    const { method, url } = req;
+
+    // 📨 Add comment
+    if (method === "POST" && url.includes("/add-comment")) {
+      const { name, comment } = JSON.parse(req.body || "{}");
+
+      if (!name || !comment) {
+        return res.status(400).json({ success: false, message: "Name and comment are required." });
+      }
+
+      const timestamp = new Date().toLocaleString();
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: "Comments!A:C", // Name, Timestamp, Comment
+        valueInputOption: "RAW",
+        resource: { values: [[name, timestamp, comment]] },
+      });
+
+      console.log(`✅ Comment added by ${name} at ${timestamp}`);
+      return res.status(200).json({ success: true, message: "Comment added successfully!" });
     }
 
-    const timestamp = new Date().toLocaleString();
+    // 📰 Add newsletter signup
+    if (method === "POST" && url.includes("/add-newsletter")) {
+      const { name, email, topic } = JSON.parse(req.body || "{}");
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: "Comments!A:C", // Name, Timestamp, Comment
-      valueInputOption: "RAW",
-      resource: {
-        values: [[name, timestamp, comment]],
-      },
-    });
+      if (!name || !email) {
+        return res.status(400).json({ success: false, message: "Name and email are required." });
+      }
 
-    console.log(`✅ Comment added: ${name} at ${timestamp}`);
-    res.status(200).json({ success: true, message: "Comment added!" });
-  } catch (error) {
-    console.error("❌ Error adding comment:", error);
-    res.status(500).json({ success: false, message: "Error adding comment." });
-  }
-});
+      const timestamp = new Date().toLocaleString();
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: "Newsletter!A:D", // Name, Timestamp, Email, Topic
+        valueInputOption: "RAW",
+        resource: { values: [[name, timestamp, email, topic]] },
+      });
 
-// 4️⃣ Newsletter Signup Route
-app.post("/add-newsletter", async (req, res) => {
-  try {
-    const { name, email, topic } = req.body;
-    if (!name || !email) {
-      return res.status(400).json({ success: false, message: "Name and email are required." });
+      console.log(`✅ Newsletter signup added for ${name}`);
+      return res.status(200).json({ success: true, message: "Newsletter signup successful!" });
     }
 
-    const timestamp = new Date().toLocaleString();
+    // 💬 Fetch comments
+    if (method === "GET" && url.includes("/comments")) {
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: "Comments!A:C",
+      });
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: "Newsletter!A:D", // Name, Timestamp, Email, Topic
-      valueInputOption: "RAW",
-      resource: {
-        values: [[name, timestamp, email, topic]],
-      },
-    });
+      const rows = response.data.values || [];
+      const comments =
+        rows.length > 1
+          ? rows
+              .slice(1)
+              .map((r) => ({
+                name: r[0] || "Anonymous",
+                timestamp: r[1] || "",
+                comment: r[2] || "",
+              }))
+              .reverse()
+          : [];
 
-    console.log(`✅ Newsletter signup added: ${name} at ${timestamp}`);
-    res.status(200).json({ success: true, message: "Newsletter signup added!" });
+      console.log(`📜 Sent ${comments.length} comments.`);
+      return res.status(200).json({ success: true, comments });
+    }
+
+    // 🔍 Default route
+    return res.status(200).send("🚀 Bree's Backend is live and connected to Google Sheets!");
   } catch (error) {
-    console.error("❌ Error adding newsletter signup:", error);
-    res.status(500).json({ success: false, message: "Error adding newsletter signup." });
+    console.error("❌ Server error:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
-});
-
-// 5️⃣ Fetch Comments Route
-app.get("/comments", async (req, res) => {
-  try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: "Comments!A:C",
-    });
-
-    const rows = response.data.values || [];
-    if (rows.length <= 1) return res.status(200).json({ success: true, comments: [] });
-
-    const comments = rows.slice(1).map((row) => ({
-      name: row[0] || "Anonymous",
-      timestamp: row[1] || "",
-      comment: row[2] || "",
-    }));
-
-    comments.reverse(); // newest first
-
-    console.log(`📜 Sent ${comments.length} comments to client.`);
-    res.status(200).json({ success: true, comments });
-  } catch (error) {
-    console.error("❌ Error fetching comments:", error);
-    res.status(500).json({ success: false, message: "Error fetching comments." });
-  }
-});
-
-// 6️⃣ Optional: Root Route
-app.get("/", (req, res) => {
-  res.send("🚀 Bree's Backend is running! Use /comments to fetch comments in JSON.");
-});
-
-// 7️⃣ Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+};
