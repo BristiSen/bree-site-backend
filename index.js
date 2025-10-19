@@ -1,8 +1,10 @@
+// 0️⃣ Load environment variables
+require("dotenv").config();
+
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const { google } = require("googleapis");
-const credentials = require("./credentials.json"); // your JSON file
 
 const app = express();
 const PORT = 3001;
@@ -10,16 +12,19 @@ const PORT = 3001;
 app.use(cors());
 app.use(bodyParser.json());
 
-// 1️⃣ Auth with Google Sheets API
+// 1️⃣ Auth with Google Sheets API using .env secrets
 const auth = new google.auth.GoogleAuth({
-  credentials,
+  credentials: {
+    client_email: process.env.GOOGLE_CLIENT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"), // IMPORTANT: convert \\n to actual line breaks
+  },
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
 const sheets = google.sheets({ version: "v4", auth });
 
-// 2️⃣ Your Google Sheet ID
-const SPREADSHEET_ID = "1xtPDMShzPOzKuIGfCQmRa6KevOM7o7wC0xqCt3Hf_fA";
+// 2️⃣ Your Google Sheet ID from .env
+const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 
 // 3️⃣ Add Comment Route
 app.post("/add-comment", async (req, res) => {
@@ -75,30 +80,24 @@ app.post("/add-newsletter", async (req, res) => {
   }
 });
 
-// 5️⃣ Fetch Comments Route (NEW!)
+// 5️⃣ Fetch Comments Route
 app.get("/comments", async (req, res) => {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: "Comments!A:C", // Name | Timestamp | Comment
+      range: "Comments!A:C",
     });
 
     const rows = response.data.values || [];
+    if (rows.length <= 1) return res.status(200).json({ success: true, comments: [] });
 
-    if (rows.length <= 1) {
-      // Assuming first row is headers
-      return res.status(200).json({ success: true, comments: [] });
-    }
-
-    // Convert to array of objects (skip header)
     const comments = rows.slice(1).map((row) => ({
       name: row[0] || "Anonymous",
       timestamp: row[1] || "",
       comment: row[2] || "",
     }));
 
-    // Newest comments first
-    comments.reverse();
+    comments.reverse(); // newest first
 
     console.log(`📜 Sent ${comments.length} comments to client.`);
     res.status(200).json({ success: true, comments });
@@ -108,7 +107,7 @@ app.get("/comments", async (req, res) => {
   }
 });
 
-// 6️⃣ Optional: Root Route (so / doesn't show Cannot GET /)
+// 6️⃣ Optional: Root Route
 app.get("/", (req, res) => {
   res.send("🚀 Bree's Backend is running! Use /comments to fetch comments in JSON.");
 });
