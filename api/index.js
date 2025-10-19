@@ -1,6 +1,5 @@
 const { google } = require("googleapis");
 
-// 1️⃣ Auth with Google Sheets API using env variables
 const auth = new google.auth.GoogleAuth({
   credentials: {
     client_email: process.env.GOOGLE_CLIENT_EMAIL,
@@ -10,11 +9,8 @@ const auth = new google.auth.GoogleAuth({
 });
 
 const sheets = google.sheets({ version: "v4", auth });
-
-// 2️⃣ Spreadsheet ID
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 
-// 3️⃣ Serverless handler
 module.exports = async (req, res) => {
   const { method } = req;
 
@@ -23,14 +19,12 @@ module.exports = async (req, res) => {
       const { name, comment } = JSON.parse(req.body);
       if (!name || !comment) throw new Error("Name and comment required");
       const timestamp = new Date().toLocaleString();
-
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
         range: "Comments!A:C",
         valueInputOption: "RAW",
         resource: { values: [[name, timestamp, comment]] },
       });
-
       return res.status(200).json({ success: true, message: "Comment added!" });
     }
 
@@ -38,14 +32,12 @@ module.exports = async (req, res) => {
       const { name, email, topic } = JSON.parse(req.body);
       if (!name || !email) throw new Error("Name and email required");
       const timestamp = new Date().toLocaleString();
-
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
         range: "Newsletter!A:D",
         valueInputOption: "RAW",
         resource: { values: [[name, timestamp, email, topic]] },
       });
-
       return res.status(200).json({ success: true, message: "Newsletter signup added!" });
     }
 
@@ -54,14 +46,12 @@ module.exports = async (req, res) => {
         spreadsheetId: SPREADSHEET_ID,
         range: "Comments!A:C",
       });
-
       const rows = response.data.values || [];
-      const comments = rows.slice(1).map((row) => ({
+      const comments = rows.slice(1).map(row => ({
         name: row[0] || "Anonymous",
         timestamp: row[1] || "",
         comment: row[2] || "",
       })).reverse();
-
       return res.status(200).json({ success: true, comments });
     }
 

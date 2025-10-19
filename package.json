@@ -1,10 +1,11 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "dev": "vercel dev"
-  },
+  "description": "Bree's serverless backend",
+  "scripts": {},
+  "keywords": [],
+  "author": "Bree",
+  "license": "ISC",
   "dependencies": {
     "googleapis": "^164.0.0"
   }
