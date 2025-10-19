@@ -1,16 +1,11 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Bree's backend for Google Sheets",
   "main": "index.js",
   "scripts": {
-    "start": "vercel dev"
+    "dev": "vercel dev"
   },
-  "keywords": [],
-  "author": "Bree",
-  "license": "ISC",
   "dependencies": {
-    "googleapis": "^164.0.0",
-    "dotenv": "^17.2.3"
+    "googleapis": "^164.0.0"
   }
 }
