@@ -1,7 +1,7 @@
 // backend/api/index.js
-const { google } = require("googleapis");
+import { google } from "googleapis";
 
-// 1️⃣ Auth with Google Sheets API using env variables
+// ------------------- AUTH WITH GOOGLE SHEETS -------------------
 const auth = new google.auth.GoogleAuth({
   credentials: {
     client_email: process.env.GOOGLE_CLIENT_EMAIL,
@@ -13,8 +13,18 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: "v4", auth });
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 
-// 2️⃣ Serverless function handler
+// ------------------- SERVERLESS FUNCTION -------------------
 export default async function handler(req, res) {
+  // ------------------- CORS HEADERS -------------------
+  res.setHeader("Access-Control-Allow-Origin", "*"); // Allow all origins
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  // Handle preflight OPTIONS requests
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
   try {
     // Parse POST body safely
     let body = {};
@@ -22,15 +32,22 @@ export default async function handler(req, res) {
       try {
         body = JSON.parse(req.body || "{}");
       } catch {
-        return res.status(400).json({ success: false, message: "Invalid JSON body" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid JSON body" });
       }
     }
 
-    // Add Comment
-    if (req.method === "POST" && req.url.endsWith("/add-comment")) {
+    // ------------------- HELPER: Clean URL -------------------
+    const path = req.url.split("?")[0]; // ignore query parameters
+
+    // ------------------- ADD COMMENT -------------------
+    if (req.method === "POST" && path.endsWith("/add-comment")) {
       const { name, comment } = body;
       if (!name || !comment)
-        return res.status(400).json({ success: false, message: "Name and comment required" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Name and comment required" });
 
       const timestamp = new Date().toLocaleString();
       await sheets.spreadsheets.values.append({
@@ -40,21 +57,25 @@ export default async function handler(req, res) {
         resource: { values: [[name, timestamp, comment]] },
       });
 
-      return res.status(200).json({ success: true, message: "Comment added!" });
+      return res
+        .status(200)
+        .json({ success: true, message: "Comment added successfully!" });
     }
 
-    // Add Newsletter
-    if (req.method === "POST" && req.url.endsWith("/add-newsletter")) {
+    // ------------------- ADD NEWSLETTER -------------------
+    if (req.method === "POST" && path.endsWith("/add-newsletter")) {
       const { name, email, topic } = body;
       if (!name || !email)
-        return res.status(400).json({ success: false, message: "Name and email required" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Name and email required" });
 
       const timestamp = new Date().toLocaleString();
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
         range: "Newsletter!A:D",
         valueInputOption: "RAW",
-        resource: { values: [[name, timestamp, email, topic]] },
+        resource: { values: [[name, timestamp, email, topic || ""]] },
       });
 
       return res
@@ -62,30 +83,32 @@ export default async function handler(req, res) {
         .json({ success: true, message: "Newsletter signup added!" });
     }
 
-    // Fetch Comments
-    if (req.method === "GET" && req.url.endsWith("/comments")) {
+    // ------------------- FETCH COMMENTS -------------------
+    if (req.method === "GET" && path.endsWith("/comments")) {
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
         range: "Comments!A:C",
       });
 
       const rows = response.data.values || [];
-      const comments = rows.slice(1).map(row => ({
-        name: row[0] || "Anonymous",
-        timestamp: row[1] || "",
-        comment: row[2] || "",
-      })).reverse();
+      const comments = rows
+        .slice(1)
+        .map((row) => ({
+          name: row[0] || "Anonymous",
+          timestamp: row[1] || "",
+          comment: row[2] || "",
+        }))
+        .reverse(); // latest first
 
       return res.status(200).json({ success: true, comments });
     }
 
-    // Root /api route fallback
-    return res
-      .status(200)
-      .json({
-        success: true,
-        message: "🚀 Bree's backend API is alive! Use /add-comment, /add-newsletter, or /comments",
-      });
+    // ------------------- DEFAULT ROOT /api -------------------
+    return res.status(200).json({
+      success: true,
+      message:
+        "🚀 Bree's backend API is alive! Use /add-comment, /add-newsletter, or /comments",
+    });
   } catch (err) {
     console.error("❌ Serverless function error:", err);
     return res.status(500).json({ success: false, message: err.message });
