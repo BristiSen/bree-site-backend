@@ -1,19 +1,16 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Bree's backend for Google Sheets",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "vercel dev"
   },
   "keywords": [],
-  "author": "",
+  "author": "Bree",
   "license": "ISC",
   "dependencies": {
-    "body-parser": "^2.2.0",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
-    "express": "^5.1.0",
-    "googleapis": "^164.0.0"
+    "googleapis": "^164.0.0",
+    "dotenv": "^17.2.3"
   }
 }
